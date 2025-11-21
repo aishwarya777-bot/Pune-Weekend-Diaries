@@ -1,0 +1,285 @@
+1. Imports and App Setup
+from google.colab import drive
+drive.mount('/content/drive')
+
+pip install pandas flask
+
+from flask import Flask, jsonify, request
+import pandas as pd
+import ast
+import random
+from datetime import datetime
+
+app = Flask(__name__)  # Initialize the Flask app
+
+2. Data Loading Function
+def load_data():
+    # Read CSV file into DataFrame.
+    df = pd.read_csv('places.csv')
+    # Convert the coordinates column from string to list (e.g., "[18.5, 73.9]" -> [18.5, 73.9])
+    df['coordinates'] = df['coordinates'].apply(ast.literal_eval)
+    return df
+
+# Load CSV
+df = pd.read_csv("/content/drive/MyDrive/Pune Weekend Diaries/places.csv")
+
+3. Secret Tips
+# Secret Tips
+SECRET_TIPS = [
+    "🔐 Secret Tip of the Week: If you're visiting a temple early morning, carry a small packet of sweets—some locals say it brings you unexpected blessings! 😉🍬",
+    "🔐 Secret Tip of the Week: Always carry a small mirror when visiting forts—locals believe it helps ward off negative energy! ✨🪞",
+    "🔐 Secret Tip of the Week: Visit lakes during sunrise with a cup of chai—the combination of mist and morning light creates magical moments! ☕🌅",
+    "🔐 Secret Tip of the Week: For scary roads, play local folk music in your car—it's said to keep spirits at bay! 🎵👻",
+    "🔐 Secret Tip of the Week: Carry a small bell when trekking—the sound helps you stay connected with your group in dense forests! 🔔🌲",
+    "🔐 Secret Tip of the Week: Visit gardens on weekdays for the most peaceful experience—weekends can get crowded! 🌸📅",
+    "🔐 Secret Tip of the Week: For mysterious places, visit during full moon—the atmosphere becomes even more enchanting! 🌕✨",
+    "🔐 Secret Tip of the Week: Always greet the local deity before starting your journey—it's considered auspicious! 🙏🕉️",
+    "🔐 Secret Tip of the Week: For adventure spots, visit during monsoon for the most thrilling experience! 🌧️🏔️",
+    "🔐 Secret Tip of the Week: For urban spots, visit during festivals for the most vibrant atmosphere! 🎉🏙️"
+
+4. Home Endpoint
+@app.route('/')
+def home():
+    """Home page: shows API info and endpoints."""
+
+    # Return API basic information as JSON
+    return jsonify({
+        'success': True,  # status of response
+        'message': '🗓️ Pune Weekend Diaries API',  # API title
+        'description': 'Welcome to the Pune Weekend Diaries API! Use these endpoints to get travel data.',  # short intro
+        'endpoints': {
+            # Dictionary of all available endpoints will go here
+            # Example:
+            # 'GET /api/places': 'Get all places'
+        },
+        'timestamp': datetime.now().isoformat()  # add current time
+    })
+
+5. Get All Places (with Filters)
+@app.route('/api/places')
+def get_places():
+    """Return all places, with optional filters."""
+    try:
+        df = load_data()  # Load places data
+
+        # Get filters from query parameters
+        category = request.args.get('category')
+        max_distance = request.args.get('max_distance', type=float)
+        spooky = request.args.get('spooky', type=str)
+
+        # Apply filters if present
+        if category:
+            df = df[df['category'] == category]
+        if max_distance is not None:
+            df = df[df['distance_from_pune_km'] <= max_distance]
+        if spooky is not None:
+            if spooky.lower() == 'true':
+                df = df[df['spooky'] == True]
+            elif spooky.lower() == 'false':
+                df = df[df['spooky'] == False]
+
+        places = df.to_dict('records')  # Convert DataFrame to list of dicts (for JSON)
+
+        return jsonify({
+            'success': True,
+            'count': len(places),
+            'places': places,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+6. Get a Random Place
+@app.route('/api/places/random')
+def get_random_place():
+    """Return a randomly-picked place."""
+    try:
+        # Load places data from CSV
+        df = load_data()
+
+        # Pick one random row from the dataframe
+        random_place = df.sample(n=1).iloc[0].to_dict()
+
+        # Return the place data as JSON
+        return jsonify({
+            'success': True,                   # request was successful
+            'place': random_place,             # random place details
+            'timestamp': datetime.now().isoformat()  # current timestamp
+        })
+
+    except Exception as e:
+        # Handle unexpected errors and return JSON response
+        return jsonify({
+            'success': False,
+            'error': str(e),                   # include error details
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+7. Get a Random Tip
+@app.route('/api/tips')
+def get_random_tip():
+    """Return a random travel tip."""
+    try:
+        # Select a random tip from the SECRET_TIPS list
+        tip = random.choice(SECRET_TIPS)
+
+        # Return the tip in JSON format
+        return jsonify({
+            'success': True,                        # request was successful
+            'tip': tip,                             # random travel tip
+            'timestamp': datetime.now().isoformat() # current timestamp
+        })
+
+    except Exception as e:
+        # Handle errors (e.g., if SECRET_TIPS is empty or another issue occurs)
+        return jsonify({
+            'success': False,
+            'error': str(e),                        # include error details
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+8. Get All Categories
+@app.route('/api/categories')
+def get_categories():
+    """Return all unique categories present in the data."""
+    try:
+        # Load places data from CSV
+        df = load_data()
+
+        # Get all unique categories, convert to list, and sort alphabetically
+        categories = sorted(df['category'].unique().tolist())
+
+        # Return categories in JSON format
+        return jsonify({
+            'success': True,                        # request was successful
+            'categories': categories,               # list of unique categories
+            'count': len(categories),               # total number of categories
+            'timestamp': datetime.now().isoformat() # current timestamp
+        })
+
+    except Exception as e:
+        # Handle errors and return JSON response
+        return jsonify({
+            'success': False,
+            'error': str(e),                        # include error details
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+9. Statistics Endpoint
+@app.route('/api/stats')
+def get_stats():
+    """Return various statistics about the places."""
+    try:
+        # Load places data from CSV
+        df = load_data()
+
+        # Calculate different statistics from the data
+        stats = {
+            'total_places': len(df),                                  # total number of places
+            'categories': df['category'].value_counts().to_dict(),    # count of places in each category
+            'spooky_places': int(df['spooky'].sum()),                 # total spooky places
+            'non_spooky_places': int((~df['spooky']).sum()),          # total non-spooky places
+            'avg_distance': float(df['distance_from_pune_km'].mean()),# average distance from Pune
+            'max_distance': float(df['distance_from_pune_km'].max()), # farthest place
+            'min_distance': float(df['distance_from_pune_km'].min()), # nearest place
+            'best_times': df['best_time_to_visit'].value_counts().to_dict()  # best visiting time counts
+        }
+
+        # Return statistics in JSON format
+        return jsonify({
+            'success': True,                        # request was successful
+            'stats': stats,                         # all calculated stats
+            'timestamp': datetime.now().isoformat() # current timestamp
+        })
+
+    except Exception as e:
+        # Handle errors and return JSON response
+        return jsonify({
+            'success': False,
+            'error': str(e),                        # include error details
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+10. Get Individual Place by ID
+@app.route('/api/places/<int:place_id>', endpoint='get_place_by_id')
+def get_place_by_id(place_id):
+    """Return details for a single place, by its ID."""
+    try:
+        # Load places data from CSV
+        df = load_data()
+
+        # Filter the dataframe for the given place ID
+        place = df[df['id'] == place_id]
+
+        # If no matching place found, return 404 error
+        if place.empty:
+            return jsonify({
+                'success': False,
+                'error': f'Place with ID {place_id} not found',  # error message
+                'timestamp': datetime.now().isoformat()
+            }), 404
+
+        # Convert the place row to a dictionary
+        place_data = place.iloc[0].to_dict()
+
+        # Return place details in JSON format
+        return jsonify({
+            'success': True,                        # request was successful
+            'place': place_data,                    # place details
+            'timestamp': datetime.now().isoformat() # current timestamp
+        })
+
+    except Exception as e:
+        # Handle errors and return JSON response
+        return jsonify({
+            'success': False,
+            'error': str(e),                        # include error details
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+11. Error Handling Routes
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors: when endpoint is not found."""
+    return jsonify({
+        'success': False,                         # request failed
+        'error': 'Endpoint not found',            # error message for missing route
+        'timestamp': datetime.now().isoformat()   # current timestamp
+    }), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors: when there is a server issue."""
+    return jsonify({
+        'success': False,                         # request failed
+        'error': 'Internal server error',         # generic server error message
+        'timestamp': datetime.now().isoformat()   # current timestamp
+    }), 500
+
+12. App Runner
+if __name__ == '__main__':
+    # Print startup messages in the console
+    print("🗓️ Starting Pune Weekend Diaries API...")
+    print("📖 Available endpoints:")
+    # List endpoints for quick reference
+    print("   - GET / (Home page)")
+    print("   - GET /api/places (All places)")
+    print("   - GET /api/places/random (Random place)")
+    print("   - GET /api/tips (Random travel tip)")
+    print("   - GET /api/categories (All categories)")
+    print("   - GET /api/stats (Statistics)")
+    print("   - GET /api/places/<id> (Place by ID)")
+
+    print("\n🚀 Server starting on http://localhost:5000")
+
+    # Run the Flask app
+    # debug=True → auto-reloads on code changes
+    # host='0.0.0.0' → accessible on local network
+    # port=5000 → runs on port 5000
+    app.run(debug=True, host='0.0.0.0', port=5000)
+
